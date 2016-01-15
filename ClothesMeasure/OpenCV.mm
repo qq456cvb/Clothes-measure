@@ -49,6 +49,7 @@ static Mat mask2;
     float shoulderLen;
     float trouserLen;
     float innerTrouserLen;
+    float neckToHalfHipLen;
     
     float hip_to_top;
     float crotch_to_top;
@@ -82,6 +83,8 @@ static Mat mask2;
     UIImage *flankGrayImage;
     std::vector<std::vector<cv::Point>> frontEdgeContour;
     std::vector<std::vector<cv::Point>> flankEdgeContour;
+    
+    std::vector<cv::Point> front_neck_pts;
 }
 
 UIImageOrientation orientation;
@@ -246,6 +249,7 @@ bool pixelDiff(Vec3b p)
 - (UIImage *)surf:(UIImage *)img1 withImg:(UIImage *)img2 withType:(int)type withThresh:(double)thresh {
     Mat result;
     Mat element(10, 10, CV_8U, Scalar::all(255));
+    int lastLine = 0;
     if ((type == 1 && !frontGrayImage) || (type == 2 && !flankGrayImage)) {
         if (type == 1) {
             if (mask.data == NULL) {
@@ -336,7 +340,7 @@ bool pixelDiff(Vec3b p)
         UIImage *image = MatToUIImage(transformed);
         if (orientation == UIImageOrientationRight) {
             cv::warpPerspective(testImage, transformed, H, cv::Size(image.size.height, image.size.width));
-            for (int i = 0; i < transformed.rows; i++) {
+            for (int i = 0; i < transformed.rows - 4; i++) {
                 for (int j = 0; j < transformed.cols; j++) {
                     if (transformed.at<Vec4i>(i, j).val[3] == 0) {
                         transformed.at<Vec4i>(i, j).val[0] = testImage.at<Vec4i>(i, j).val[0];
@@ -368,10 +372,16 @@ bool pixelDiff(Vec3b p)
         absdiff(trainImage, transformed, result);
         [_delegate onUpdate:MatToUIImage(result) withProgress:5];
         
+        // get saturate
+        vector<Mat> channels;
+        cv::split(result, channels);
+        Mat gray[3] = {channels[1]+channels[2], channels[1]+channels[2], channels[1]+channels[2]};
+        merge(gray, 3, result);
         cvtColor(result, result, COLOR_BGR2GRAY);
         morphologyEx(result, result, MORPH_OPEN, element);
-        //    morphologyEx(result, result, MORPH_CLOSE, element);
+        morphologyEx(result, result, MORPH_CLOSE, element);
         // 绘制轮廓
+        
         if (type == 1) {
             for (int i = 0; i < mask.rows; i++) {
                 for (int j = 0; j < mask.cols; j++) {
@@ -381,6 +391,8 @@ bool pixelDiff(Vec3b p)
                         } else {
                             result.at<UInt8>(j, i) = 0;
                         }
+                    } else {
+                        lastLine = i;
                     }
                 }
             }
@@ -394,14 +406,12 @@ bool pixelDiff(Vec3b p)
                         } else {
                             result.at<UInt8>(j, i) = 0;
                         }
+                    } else {
+                        lastLine = i;
                     }
                 }
             }
             flankGrayImage = MatToUIImage(result);
-            if (type == 2) {
-                [_delegate onProcessed:flankGrayImage];
-//                return flankGrayImage;
-            }
         }
     } else {
         if (type == 1) {
@@ -419,11 +429,37 @@ bool pixelDiff(Vec3b p)
             result.at<UInt8>(i, j) *= 1.5;
         }
     }
-    threshold(result, result, thresh, 255, THRESH_BINARY);
-    morphologyEx(result, result, MORPH_CLOSE, element);
-//    Canny(result, result, 50, 2 * 40, 3, true);
-//    adaptiveThreshold(result, result, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY_INV, 11, 8);
     
+    
+    
+    //threshold(result, result, thresh, 255, THRESH_BINARY);
+    //morphologyEx(result, result, MORPH_CLOSE, element);
+    Canny(result, result, 40, 2 * 50, 3, true);
+    morphologyEx(result, result, MORPH_CLOSE, element);
+    //adaptiveThreshold(result, result, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY_INV, 21, 10);
+    
+    // remove the horizontal line
+    if (type == 1) {
+        for (int i = lastLine; i >= lastLine-2; i--) {
+            for (int j = 0; j < mask.cols; j++) {
+                if (img1.imageOrientation != UIImageOrientationRight) {
+                    result.at<UInt8>(i, j) = 0;
+                } else {
+                    result.at<UInt8>(j, i) = 0;
+                }
+            }
+        }
+    } else {
+        for (int i = lastLine; i >= lastLine-2; i--) {
+            for (int j = 0; j < mask2.cols; j++) {
+                if (img1.imageOrientation != UIImageOrientationRight) {
+                    result.at<UInt8>(i, j) = 0;
+                } else {
+                    result.at<UInt8>(j, i) = 0;
+                }
+            }
+        }
+    }
     [_delegate onUpdate:MatToUIImage(result) withProgress:7];
     
     Mat mat_contours(result.size(),CV_8U,Scalar(0));
@@ -568,6 +604,15 @@ int getLinePixels(Mat contour, const int& x, const int& y)
     }
 }
 
+/**
+ *  find min x between min y and max y
+ *
+ *  @param contour_filled filled contour mat
+ *  @param start_y        min y
+ *  @param end_y          max y
+ *
+ *  @return min x length
+ */
 int findMin(Mat contour_filled, const int& start_y, const int& end_y)
 {
     if (contour_filled.rows < contour_filled.cols) {
@@ -822,7 +867,7 @@ float calcR(float a, float b)
 
 - (NSString *) getResultString {
     NSString* string;
-    string = [[NSString alloc]  initWithFormat:@"肩宽:%f\n胸围:%f\n腰围:%f\n袖长:%f\n身长:%f\n臀围:%f\n袖肥:%f\n袖中肥:%f\n裤长:%f\n内裤长:%f\n裤脚肥:%f\n", [self shoulderLen],[self getBustRound], [self getWaistRound],[self sleeveLen],[self bodyLen],[self getHipRound],[self getSleeveRound],[self getSleeveMidRound],[self trouserLen],[self innerTrouserLen],[self getAnkleRound]];
+    string = [[NSString alloc]  initWithFormat:@"领宽:%f\n肩宽:%f\n胸围:%f\n腰围:%f\n袖长:%f\n身长:%f\n臀围:%f\n袖肥:%f\n袖中肥:%f\n裤长:%f\n内裤长:%f\n裤脚肥:%f\n",[self getNeckRound], [self shoulderLen],1.05*[self getBustRound], [self getWaistRound],[self sleeveLen],1.05*[self neckToHipHalfLen],[self getHipRound],[self getSleeveRound],[self getSleeveMidRound],[self trouserLen],[self innerTrouserLen],[self getAnkleRound]];
     return string;
 }
 
@@ -945,6 +990,11 @@ float calcR(float a, float b)
     return (15.458 + 0.481 * waist_len_front + 2.514 * waist_len_flank);
 }
 
+- (float) getNeckRound
+{
+    return calcR(neck_front/2, neck_flank/2);
+}
+
 - (float) getHipRound
 {
     return calcR(hip_front/2, hip_flank/2);
@@ -981,6 +1031,10 @@ float calcR(float a, float b)
 
 - (float) bodyLen {
     return bodyLen;
+}
+
+- (float) neckToHipHalfLen {
+    return neckToHalfHipLen;
 }
 
 - (float) trouserLen {
@@ -1124,7 +1178,7 @@ float calcR(float a, float b)
         line(result, shoulder_pts_left[0], shoulder_pts_left[1], Scalar(255, 255, 0), 3);
         // bust
         std::vector<cv::Point> bust_pts;
-        bust_pts = crossPointsY(shoulder_pts_left[1].y + 5/flankRatio, contour);
+        bust_pts = crossPointsY(shoulder_pts_left[1].y + 12.0/flankRatio, contour);
         VEC_CHECK(bust_pts, 2);
         line(result, bust_pts[0], bust_pts[bust_pts.size()-1], Scalar(255, 0, 0), 3);
         bust_len_flank = (bust_pts[bust_pts.size()-1].x-bust_pts[0].x) * flankRatio;
@@ -1141,12 +1195,13 @@ float calcR(float a, float b)
         waist_len_flank = (waist_pts[1].x - waist_pts[0].x) * flankRatio;
         std::cout<< "腰侧宽：" <<waist_len_flank << std::endl;
         
+        
         //crotch
-        std::vector<cv::Point> crotch_pts;
-        crotch_pts = crossPointsY(crotch_to_top * r.height + r.tl().y, contour);
-        VEC_CHECK(crotch_pts, 2);
-//        line(result, crotch_pts[0], crotch_pts[1], Scalar(255), 3);
-        crotch_flank = (crotch_pts[crotch_pts.size()-1].x - crotch_pts[0].x) * flankRatio;
+//        std::vector<cv::Point> crotch_pts;
+//        crotch_pts = crossPointsY(crotch_to_top * r.height + r.tl().y, contour);
+//        VEC_CHECK(crotch_pts, 2);
+////        line(result, crotch_pts[0], crotch_pts[1], Scalar(255), 3);
+//        crotch_flank = (crotch_pts[crotch_pts.size()-1].x - crotch_pts[0].x) * flankRatio;
         
         std::vector<cv::Point> hip_pts;
         // hip
@@ -1174,8 +1229,9 @@ float calcR(float a, float b)
         std::cout<< "臀侧宽：" <<hip_flank << std::endl;
         
         // front waist
-        Mat front_contour;
+        Mat front_contour, front_mat;
         UIImageToMat(frontEdge, front_contour, false);
+        UIImageToMat(frontImage, front_mat, false);
         if (frontEdge.imageOrientation == UIImageOrientationRight) {
             transpose(front_contour, front_contour);
             flip(front_contour, front_contour, 1);
@@ -1184,14 +1240,24 @@ float calcR(float a, float b)
         cv::Rect r_front = boundingRect(front_contour);
         std::vector<cv::Point> waist_front_pts = crossPointsY(hip_to_top * r_front.height + r_front.tl().y - (hip_pts[0].y - waist_pts[0].y), front_contour);
         VEC_CHECK(waist_front_pts, 2);
-        line(result, waist_front_pts[waist_front_pts.size()-1], waist_front_pts[0], Scalar(255,255,0), 3);
+        line(front_mat, waist_front_pts[waist_front_pts.size()-1], waist_front_pts[0], Scalar(0,255,0), 3);
         waist_len_front = (waist_front_pts[waist_front_pts.size()-1].x - waist_front_pts[0].x) * frontRatio;
         std::cout << "腰正宽：" << waist_len_front << std::endl;
         
-        vector<cv::Point> hip_front_pts = crossPointsY((hip_to_top * r_front.height) / flankRatio * frontRatio + r_front.tl().y, front_contour);
+        vector<cv::Point> hip_front_pts = crossPointsY((hip_to_top * r_front.height) + r_front.tl().y, front_contour);
         VEC_CHECK(hip_front_pts, 2);
         hip_front = (hip_front_pts[hip_front_pts.size()-1].x - hip_front_pts[0].x) * frontRatio;
+        line(front_mat, hip_front_pts[hip_front_pts.size()-1], hip_front_pts[0], Scalar(255,255,0), 3);
         std::cout << "臀正宽：" << hip_front << std::endl;
+        
+        // 脖子到二分之一臀部
+        cv::Point neck_middle = (front_neck_pts[0] + front_neck_pts[1]) / 2.0;
+        cv::Point hip_left_half = (3.0 * hip_front_pts[0] + hip_front_pts[1]) / 4;
+        neckToHalfHipLen = getDistance(neck_middle, hip_left_half) * flankRatio;
+        line(front_mat, hip_left_half, neck_middle, Scalar(255,0,255), 3);
+        std::cout << "臀半到脖子长：" << neckToHalfHipLen << std::endl;
+        
+        [_delegate onReference:MatToUIImage(front_mat)];
         //knee
 //        std::vector<cv::Point>knee_pts;
 //        min_pos_y = pushToMin(contour_filled, hip_pts[0].y, 3, UPTODOWN);
@@ -1210,19 +1276,19 @@ float calcR(float a, float b)
     //    line(result, lower_leg_pts[0], lower_leg_pts[1], Scalar(255), 3);
         
         //ankle
-        std::vector<cv::Point> ankle_pts;
-        ankle_pts = crossPointsY(ankle_to_top * r.height + r.tl().y, contour);
-        VEC_CHECK(ankle_pts, 2);
-    //    line(result, ankle_pts[0], ankle_pts[1], Scalar(255), 3);
-        ankle_flank = ankle_front / 0.618;
-        if (frontImage.imageOrientation == UIImageOrientationRight) {
-            transpose(result, result);
-            flip(result, result, 2);
-            transpose(contour, contour);
-            flip(contour, contour, 2);
-        }
-        trouserLen = (r.br().y - waist_pts[0].y) * flankRatio;
-        std::cout << "裤长：" << trouserLen << std::endl;
+//        std::vector<cv::Point> ankle_pts;
+//        ankle_pts = crossPointsY(ankle_to_top * r.height + r.tl().y, contour);
+//        VEC_CHECK(ankle_pts, 2);
+//    //    line(result, ankle_pts[0], ankle_pts[1], Scalar(255), 3);
+//        ankle_flank = ankle_front / 0.618;
+//        if (frontImage.imageOrientation == UIImageOrientationRight) {
+//            transpose(result, result);
+//            flip(result, result, 2);
+//            transpose(contour, contour);
+//            flip(contour, contour, 2);
+//        }
+//        trouserLen = (r.br().y - waist_pts[0].y) * flankRatio;
+//        std::cout << "裤长：" << trouserLen << std::endl;
         return MatToUIImage(result);
     }
     @catch (NSException *e) {
@@ -1307,15 +1373,14 @@ float calcR(float a, float b)
 //        int start_y = (candidates[2].y + candidates[3].y)/2;
 //        int end_y = start_y-20/ratio;
         
-        std::vector<cv::Point> neck_pts;
         min_pos_y = findMin(contour_filled, r.tl().y + 15 / frontRatio, r.tl().y + 55 / frontRatio);
-        neck_pts = crossPointsY(min_pos_y, contour);
-        VEC_CHECK(neck_pts, 2);
-        neck_to_top = (neck_pts[0].y - r.tl().y) * frontRatio;
-        line(result, neck_pts[0], neck_pts[1], Scalar::all(arc4random() % 255), 3);
-        neck_front = (neck_pts[1].x - neck_pts[0].x) * frontRatio;
+        front_neck_pts = crossPointsY(min_pos_y, contour);
+        VEC_CHECK(front_neck_pts, 2);
+        neck_to_top = (front_neck_pts[0].y - r.tl().y) * frontRatio;
+        line(result, front_neck_pts[0], front_neck_pts[1], Scalar::all(arc4random() % 255), 3);
+        neck_front = (front_neck_pts[1].x - front_neck_pts[0].x) * frontRatio;
         std::cout << "领口正宽: " << neck_front << std::endl;
-        up = neck_pts[0].y;
+        up = front_neck_pts[0].y;
     ////    std::cout<<"start_y："<<start_y<<std::endl;
     ////    std::cout<<"end_y："<<end_y<<std::endl;
 
@@ -1359,15 +1424,23 @@ float calcR(float a, float b)
     //    std::cout << "肩宽: " << abs(candidates[0].x-candidates[1].x) * ratio << std::endl;
        
         /*----------------wrist_to_margin----------------*/
+        // right
         max_pos_x = r.br().x - 10 / frontRatio;
         max_pos_x = findMinX(contour_filled, max_pos_x - 20.0 / frontRatio, max_pos_x);
-        std::vector<cv::Point> wrist_pts;
-        wrist_pts = crossPointsX(max_pos_x, contour);
-        VEC_CHECK(wrist_pts, 2);
-        line(result, wrist_pts[0], wrist_pts[1], Scalar(255, 0, 255), 3);
+        std::vector<cv::Point> wrist_pts_right;
+        wrist_pts_right = crossPointsX(max_pos_x, contour);
+        VEC_CHECK(wrist_pts_right, 2);
+        line(result, wrist_pts_right[0], wrist_pts_right[1], Scalar(255, 0, 255), 3);
         wrist_to_margin = (r.br().x - max_pos_x) * 1.0f / r.width;
         
-        
+        // left
+        max_pos_x = r.tl().x + 10 / frontRatio;
+        max_pos_x = findMinX(contour_filled, max_pos_x, max_pos_x + 20.0 / frontRatio);
+        std::vector<cv::Point> wrist_pts_left;
+        wrist_pts_left = crossPointsX(max_pos_x, contour);
+        VEC_CHECK(wrist_pts_left, 2);
+        line(result, wrist_pts_left[0], wrist_pts_left[1], Scalar(255, 0, 255), 3);
+        wrist_to_margin = MAX((max_pos_x - r.tl().x) * 1.0f / r.width, wrist_to_margin);
         
 
          /*----------------shoulder------------*/
@@ -1384,6 +1457,8 @@ float calcR(float a, float b)
             if(((double)(rrow_5-rrow))/5>1.732)
                 break;
         }
+        rcol += 5;
+        lcol -= 5;
         shoulderLen = (rcol - lcol) * frontRatio;
         std::vector<cv::Point> shoulder_pts_left = crossPointsX(lcol, contour);
         std::vector<cv::Point> shoulder_pts_right = crossPointsX(rcol, contour);
@@ -1397,7 +1472,7 @@ float calcR(float a, float b)
         line(result, shoulder_pts_left[1], shoulder_pts_right[1], Scalar(255,255,0), 3);
         /* -------------bust------------*/
         std::vector<cv::Point> bust_pts;
-        bust_pts = crossPointsY(MAX(shoulder_pts_left[1].y, shoulder_pts_right[1].y) + 5/frontRatio, contour);
+        bust_pts = crossPointsY(MAX(shoulder_pts_left[1].y, shoulder_pts_right[1].y) + 8.0/frontRatio, contour);
         VEC_CHECK(bust_pts, 2);
         bust_to_top = (bust_pts[0].y - r.tl().y) * frontRatio;
         line(result, bust_pts[1], bust_pts[0], Scalar(255, 0, 0), 3);
@@ -1410,16 +1485,13 @@ float calcR(float a, float b)
         
         int arm_down_right = shoulder_pts_right[0].x;
 //        int arm_down_left = shoulder_pts_left[0].x;
-        float sleeve_right = getDistance(wrist_pts[0], shoulder_pts_right[0]) * frontRatio;
+        float sleeve_right = (getDistance(wrist_pts_right[0], shoulder_pts_right[0]) + getDistance((front_neck_pts[0] + front_neck_pts[1]) / 2, shoulder_pts_right[0])) * frontRatio;
 //        min_pos_x = pushToMin(contour_filled, arm_left, 5, LEFTTORIGHT);
-        max_pos_x = r.tl().x + 10 / frontRatio;
-        max_pos_x = findMinX(contour_filled, max_pos_x, max_pos_x + 20.0 / frontRatio);
-        std::vector<cv::Point> wrist_pts_left;
-        wrist_pts_left = crossPointsX(max_pos_x, contour);
-        VEC_CHECK(wrist_pts_left, 2);
-        float sleeve_left = getDistance(wrist_pts_left[0], shoulder_pts_left[0]) * frontRatio;
+        float sleeve_left = (getDistance(wrist_pts_left[0], shoulder_pts_left[0]) + getDistance((front_neck_pts[0] + front_neck_pts[1]) / 2, shoulder_pts_left[0])) * frontRatio;
         sleeveLen = MAX(sleeve_left, sleeve_right);
-        sleeveLen += getDistance(wrist_pts[0], fingerTips[1]) / 5 * frontRatio;
+        
+        // 补正，偏小，增加手腕到指尖的五分之一
+        sleeveLen += getDistance(wrist_pts_right[0], fingerTips[1]) / 5 * frontRatio;
         std::cout << "左袖长: " << sleeve_left << std::endl;
         std::cout << "右袖长: " << sleeve_right << std::endl;
         
@@ -1449,34 +1521,34 @@ float calcR(float a, float b)
 //        std::cout << "腰宽：" << waist_len_front << std::endl;
         
         /* -------------crotch------------*/
-        std::vector<cv::Point> crotch_pts;
-        int start_y = r.br().y - 15 / frontRatio;
-        while (1) {
-            int cnt = 0;
-            for (int i = 0; i < frontImage.size.width; i++)
-            {
-                if (contour.at<UInt8>(start_y, i) != 0) {
-                    crotch_pts.push_back(cv::Point(i, start_y));
-                    cnt++;
-                }
-            }
-            if (cnt < 3) {
-                break;
-            }
-            crotch_pts.clear();
-            start_y--;
-        }
-//        int end_y = r.br().y - 5.0f/ratio;
-
-    //    assert(crotch_pts.size() == 3);
-        for (int i = 0; i < crotch_pts.size(); i++) {
-            crotch_pts[i].y -= 5 / frontRatio;
-        }
-        VEC_CHECK(crotch_pts, 2);
-        line(result, crotch_pts[0], crotch_pts[crotch_pts.size()-1], Scalar(arc4random() % 255), 3);
-        middle = crotch_pts[0].y;
-        crotch_to_top = (crotch_pts[0].y - r.tl().y) * 1.0 / r.height ;
-        crotch_front = (crotch_pts[crotch_pts.size()-1].x - crotch_pts[0].x) * frontRatio;
+//        std::vector<cv::Point> crotch_pts;
+//        int start_y = r.br().y - 15 / frontRatio;
+//        while (1) {
+//            int cnt = 0;
+//            for (int i = 0; i < frontImage.size.width; i++)
+//            {
+//                if (contour.at<UInt8>(start_y, i) != 0) {
+//                    crotch_pts.push_back(cv::Point(i, start_y));
+//                    cnt++;
+//                }
+//            }
+//            if (cnt < 3) {
+//                break;
+//            }
+//            crotch_pts.clear();
+//            start_y--;
+//        }
+////        int end_y = r.br().y - 5.0f/ratio;
+//
+//    //    assert(crotch_pts.size() == 3);
+//        for (int i = 0; i < crotch_pts.size(); i++) {
+//            crotch_pts[i].y -= 5 / frontRatio;
+//        }
+//        VEC_CHECK(crotch_pts, 2);
+//        line(result, crotch_pts[0], crotch_pts[crotch_pts.size()-1], Scalar(arc4random() % 255), 3);
+//        middle = crotch_pts[0].y;
+//        crotch_to_top = (crotch_pts[0].y - r.tl().y) * 1.0 / r.height ;
+//        crotch_front = (crotch_pts[crotch_pts.size()-1].x - crotch_pts[0].x) * frontRatio;
         
         /* -------------hip------------*/
 //        std::vector<cv::Point> hip_pts;
@@ -1490,19 +1562,18 @@ float calcR(float a, float b)
 //        
         /* -------------ankle------------*/
         
-        
-        std::vector<cv::Point> ankle_pts;
-        min_pos_y = findMin(contour_filled, crotch_pts[0].y, r.br().y - 4 / frontRatio);
-//        min_pos_y = r.br().y - 20 / ratio;
-        
-        ankle_pts = crossPointsY(min_pos_y, contour);
-        VEC_CHECK(ankle_pts, 4);
-    //    assert(ankle_pts.size() == 4);
-        line(result, ankle_pts[0], ankle_pts[1], Scalar::all(arc4random() % 255), 3);
-//        line(result, ankle_pts[2], ankle_pts[3], Scalar::all(arc4random() % 255), 3);
-        ankle_front = abs(ankle_pts[1].x - ankle_pts[0].x) * frontRatio;
-        down = ankle_pts[0].y;
-        ankle_to_top = (ankle_pts[0].y - r.tl().y) * 1.0 / r.height;
+//        std::vector<cv::Point> ankle_pts;
+//        min_pos_y = findMin(contour_filled, crotch_pts[0].y, r.br().y - 4 / frontRatio);
+////        min_pos_y = r.br().y - 20 / ratio;
+//        
+//        ankle_pts = crossPointsY(min_pos_y, contour);
+//        VEC_CHECK(ankle_pts, 4);
+//    //    assert(ankle_pts.size() == 4);
+//        line(result, ankle_pts[0], ankle_pts[1], Scalar::all(arc4random() % 255), 3);
+////        line(result, ankle_pts[2], ankle_pts[3], Scalar::all(arc4random() % 255), 3);
+//        ankle_front = abs(ankle_pts[1].x - ankle_pts[0].x) * frontRatio;
+//        down = ankle_pts[0].y;
+//        ankle_to_top = (ankle_pts[0].y - r.tl().y) * 1.0 / r.height;
         
          /* ---------upper_leg----------- */
         
@@ -1518,21 +1589,21 @@ float calcR(float a, float b)
         
         /*--------------lower_leg---------------*/
         
-        std::vector<cv::Point> lower_leg_pts;
-        max_pos_y = pushToMax(contour_filled, ankle_pts[0].y, 3, DOWNTOUP);
-        lower_leg_pts = crossPointsY(max_pos_y, contour);
-        VEC_CHECK(lower_leg_pts, 2);
-    //    assert(lower_leg_pts.size() == 4);
-    //    line(result, lower_leg_pts[0], lower_leg_pts[1], Scalar(255), 3);
-    //    line(result, lower_leg_pts[2], lower_leg_pts[3], Scalar(255), 3);
-        lower_leg_to_top = (lower_leg_pts[0].y - r.tl().y) * 1.0 / r.height;
-        
-    //    std::cout<<"总宽："<<(r.br().x - r.tl().x)*ratio<<std::endl;
-        
-        bodyLen = (middle-up) * frontRatio;
-        innerTrouserLen = (down-middle) * frontRatio;
-        std::cout<<"身长："<< (middle-up) * frontRatio<<std::endl;
-        std::cout<<"内裤长："<< (down-middle) * frontRatio <<std::endl;
+//        std::vector<cv::Point> lower_leg_pts;
+//        max_pos_y = pushToMax(contour_filled, ankle_pts[0].y, 3, DOWNTOUP);
+//        lower_leg_pts = crossPointsY(max_pos_y, contour);
+//        VEC_CHECK(lower_leg_pts, 2);
+//    //    assert(lower_leg_pts.size() == 4);
+//    //    line(result, lower_leg_pts[0], lower_leg_pts[1], Scalar(255), 3);
+//    //    line(result, lower_leg_pts[2], lower_leg_pts[3], Scalar(255), 3);
+//        lower_leg_to_top = (lower_leg_pts[0].y - r.tl().y) * 1.0 / r.height;
+//        
+//    //    std::cout<<"总宽："<<(r.br().x - r.tl().x)*ratio<<std::endl;
+//        
+//        bodyLen = (middle-up) * frontRatio;
+//        innerTrouserLen = (down-middle) * frontRatio;
+//        std::cout<<"身长："<< (middle-up) * frontRatio<<std::endl;
+//        std::cout<<"内裤长："<< (down-middle) * frontRatio <<std::endl;
         if (frontImage.imageOrientation == UIImageOrientationRight) {
             transpose(result, result);
             flip(result, result, 2);

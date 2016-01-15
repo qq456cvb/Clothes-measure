@@ -242,6 +242,10 @@ class ViewController: UIViewController,UIImagePickerControllerDelegate,UINavigat
         }
     }
     
+    func onReference(img: UIImage!) {
+        UIImageWriteToSavedPhotosAlbum(img, nil, nil, nil);
+    }
+    
     func onUpdate(img: UIImage!, withProgress progress: Int) {
 //        if progress > 3 {
 //            dispatch_sync(dispatch_get_main_queue(), {

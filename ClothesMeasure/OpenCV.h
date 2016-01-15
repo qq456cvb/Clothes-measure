@@ -19,6 +19,7 @@
 
 - (void) onProcessed:(UIImage *) img;
 - (void) onUpdate:(UIImage *) img withProgress:(NSInteger) progress;
+- (void) onReference:(UIImage *) img;
 
 @end
 
@@ -51,6 +52,7 @@
 - (float) getAnkleRound;
 - (float) shoulderLen;
 - (float) bodyLen;
+- (float) neckToHipHalfLen;
 - (float) sleeveLen;
 - (float) trouserLen;
 - (float) innerTrouserLen;

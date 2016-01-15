@@ -10,11 +10,11 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "ClothesMeasure/OpenCV.mm"
-            timestampString = "467385573.971351"
+            timestampString = "472899977.321167"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1544"
-            endingLineNumber = "1544"
+            startingLineNumber = "1609"
+            endingLineNumber = "1609"
             landmarkName = "-frontAnalyze"
             landmarkType = "5">
          </BreakpointContent>
@@ -26,27 +26,11 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "ClothesMeasure/OpenCV.mm"
-            timestampString = "467385573.971351"
+            timestampString = "472893763.7911"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1065"
-            endingLineNumber = "1065"
-            landmarkName = "-flankAnalyze"
-            landmarkType = "5">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "ClothesMeasure/OpenCV.mm"
-            timestampString = "467385573.971351"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "581"
-            endingLineNumber = "581"
+            startingLineNumber = "626"
+            endingLineNumber = "626"
             landmarkName = "findMin(Mat contour_filled, const int&amp; start_y, const int&amp; end_y)"
             landmarkType = "7">
          </BreakpointContent>
@@ -58,11 +42,11 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "ClothesMeasure/OpenCV.mm"
-            timestampString = "467385573.971351"
+            timestampString = "472893763.7911"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "590"
-            endingLineNumber = "590"
+            startingLineNumber = "635"
+            endingLineNumber = "635"
             landmarkName = "findMin(Mat contour_filled, const int&amp; start_y, const int&amp; end_y)"
             landmarkType = "7">
          </BreakpointContent>
@@ -74,11 +58,11 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "ClothesMeasure/OpenCV.mm"
-            timestampString = "467385573.971351"
+            timestampString = "472899977.321167"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1498"
-            endingLineNumber = "1498"
+            startingLineNumber = "1563"
+            endingLineNumber = "1563"
             landmarkName = "-frontAnalyze"
             landmarkType = "5">
          </BreakpointContent>
@@ -90,11 +74,11 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "ClothesMeasure/OpenCV.mm"
-            timestampString = "467385573.971351"
+            timestampString = "472893763.7911"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "519"
-            endingLineNumber = "519"
+            startingLineNumber = "555"
+            endingLineNumber = "555"
             landmarkName = "crossPointsY(int y, Mat contour)"
             landmarkType = "7">
          </BreakpointContent>
@@ -106,29 +90,13 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "ClothesMeasure/OpenCV.mm"
-            timestampString = "467385573.971351"
+            timestampString = "472893763.7911"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "522"
-            endingLineNumber = "522"
+            startingLineNumber = "558"
+            endingLineNumber = "558"
             landmarkName = "crossPointsX(int x, Mat contour)"
             landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "ClothesMeasure/OpenCV.mm"
-            timestampString = "467385573.971351"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1131"
-            endingLineNumber = "1131"
-            landmarkName = "-flankAnalyze"
-            landmarkType = "5">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>
